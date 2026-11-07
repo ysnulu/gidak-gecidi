@@ -1,0 +1,518 @@
+<title>Gıdak Geçidi</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@500;700&family=VT323&display=swap">
+<style>
+/* Tek ekran arcade: ortada ölçeklenen piksel tuval, üstünde HUD ve kaplamalar. Tek (koyu) görünüm bilinçli. */
+:root{
+  --night:#16131f;      /* sahne dışı zemin */
+  --panel:#231e31;      /* kaplama paneli */
+  --ink:#f6f1e3;        /* yazı */
+  --muted:#a69cbd;      /* ikincil yazı */
+  --yolk:#f7c948;       /* vurgu: mısır sarısı */
+  --comb:#e23b2e;       /* uyarı: ibik kırmızısı */
+  --display:"Pixelify Sans", "Courier New", monospace;
+  --mono:"VT323", "Courier New", monospace;
+  color-scheme:dark;
+}
+html,body{height:100%}
+body{background:var(--night);color:var(--ink);font-family:var(--mono);overflow:hidden;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));box-sizing:border-box}
+#app{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding-block:8px;box-sizing:border-box}
+#stage{position:relative;touch-action:none;user-select:none;-webkit-user-select:none;border:3px solid #000;box-shadow:0 0 0 3px var(--panel)}
+canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+.hud{position:absolute;inset:0 0 auto 0;display:flex;justify-content:space-between;align-items:flex-start;padding:8px 10px;pointer-events:none;
+  font-family:var(--display);text-shadow:2px 2px 0 #000}
+#score{font-size:clamp(28px,7vw,40px);font-weight:700;line-height:1}
+.side{display:flex;flex-direction:column;align-items:flex-end;gap:4px;font-size:15px}
+.corn-ct{display:flex;align-items:center;gap:6px;color:var(--yolk)}
+.corn-ct i{width:8px;height:12px;background:var(--yolk);box-shadow:inset -2px 0 0 #c99a1e,0 3px 0 #4f9b3a}
+.best{color:var(--muted);letter-spacing:.06em;font-size:13px}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(22,19,31,.55)}
+.card{background:var(--panel);border:3px solid #000;box-shadow:0 0 0 3px var(--ink),6px 6px 0 3px #000;padding:18px 18px 16px;width:min(84%,300px);text-align:center;display:flex;flex-direction:column;gap:10px}
+.card h1{font-family:var(--display);font-weight:700;font-size:clamp(26px,7vw,34px);margin:0;line-height:1;color:var(--yolk);text-shadow:3px 3px 0 #000;text-wrap:balance}
+.card h2{font-family:var(--display);font-weight:700;font-size:26px;margin:0;color:var(--comb);text-shadow:2px 2px 0 #000}
+.card p{margin:0;font-size:20px;line-height:1.1;color:var(--ink)}
+.card .dim{color:var(--muted);font-size:18px}
+.stats{display:flex;justify-content:center;gap:22px;font-family:var(--display);font-size:15px;color:var(--muted)}
+.stats b{display:block;font-size:26px;color:var(--ink)}
+.new{color:var(--yolk);font-family:var(--display);font-size:15px}
+.btn{pointer-events:auto;font-family:var(--display);font-weight:700;font-size:18px;color:#1b1626;background:var(--yolk);border:3px solid #000;box-shadow:3px 3px 0 #000;padding:8px 14px;cursor:pointer}
+.btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #000}
+.btn:focus-visible,#mute:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.foot{display:flex;gap:14px;align-items:center;font-size:18px;color:var(--muted);flex-wrap:wrap;justify-content:center}
+.foot kbd{font-family:var(--mono);background:var(--panel);border:2px solid #000;padding:0 5px;color:var(--ink)}
+#mute{font-family:var(--mono);font-size:18px;background:var(--panel);color:var(--ink);border:2px solid #000;padding:2px 8px;cursor:pointer}
+</style>
+
+<div id="app">
+  <div id="stage">
+    <canvas id="game"></canvas>
+    <div class="hud">
+      <div id="score">0</div>
+      <div class="side">
+        <div class="corn-ct"><i></i><span id="corn">0</span></div>
+        <div class="best">EN İYİ <span id="best">0</span></div>
+      </div>
+    </div>
+    <div class="overlay" id="title">
+      <div class="card">
+        <h1>GIDAK<br>GEÇİDİ</h1>
+        <p>Tavuğu yolun, ırmağın ve rayların karşısına geçir.</p>
+        <p class="dim">Mısırları topla. Fazla oyalanırsan tilki gelir.</p>
+        <button class="btn" id="startBtn" type="button">BAŞLA</button>
+      </div>
+    </div>
+    <div class="overlay" id="over" hidden>
+      <div class="card">
+        <h2 id="reason">EZİLDİN!</h2>
+        <div class="stats">
+          <div>SKOR<b id="oScore">0</b></div>
+          <div>MISIR<b id="oCorn">0</b></div>
+          <div>EN İYİ<b id="oBest">0</b></div>
+        </div>
+        <div class="new" id="newBest" hidden>YENİ REKOR!</div>
+        <button class="btn" id="againBtn" type="button">TEKRAR</button>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <span><kbd>↑←↓→</kbd> / <kbd>WASD</kbd> zıpla</span>
+    <span>Telefonda: dokun = ileri, kaydır = yön</span>
+    <button id="mute" type="button">Ses: açık</button>
+  </div>
+</div>
+
+<script>
+(()=>{
+const T=16, COLS=11, ROWS=16, W=COLS*T, H=ROWS*T, SPAN=COLS+6;
+const cv=document.getElementById('game'), ctx=cv.getContext('2d');
+cv.width=W; cv.height=H;
+const $=id=>document.getElementById(id);
+
+/* ---------- yardımcılar ---------- */
+const rnd=(a,b)=>a+Math.random()*(b-a);
+const ri=(a,b)=>Math.floor(rnd(a,b+1));
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+function hash(n){n=Math.imul(n^0x5bf03635,374761393);n=Math.imul(n^(n>>>13),1274126177);return((n^(n>>>16))>>>0)/4294967296}
+function R(x,y,w,h,c){ctx.fillStyle=c;ctx.fillRect(Math.round(x),Math.round(y),w,h)}
+const diff=y=>Math.min(1,Math.max(0,y)/160);
+let best=0; try{best=+localStorage.getItem('gidak-best')||0}catch(e){}
+
+/* ---------- ses ---------- */
+let actx=null, muted=false;
+function beep(f1,f2,dur,type='square',vol=0.05){
+  if(muted) return;
+  try{
+    if(!actx) actx=new (window.AudioContext||window.webkitAudioContext)();
+    const t=actx.currentTime,o=actx.createOscillator(),g=actx.createGain();
+    o.type=type;o.frequency.setValueAtTime(f1,t);o.frequency.exponentialRampToValueAtTime(f2,t+dur);
+    g.gain.setValueAtTime(vol,t);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(actx.destination);o.start(t);o.stop(t+dur+0.02);
+  }catch(e){}
+}
+const sfx={
+  hop:()=>beep(480,760,0.07),
+  corn:()=>{beep(880,880,0.06);setTimeout(()=>beep(1320,1320,0.09),60)},
+  squash:()=>beep(300,60,0.35,'sawtooth',0.07),
+  splash:()=>{beep(600,90,0.4,'triangle',0.09)},
+  fox:()=>{beep(200,500,0.15,'sawtooth',0.06);setTimeout(()=>beep(500,120,0.3,'sawtooth',0.06),150)},
+  ding:()=>beep(1500,1500,0.05,'square',0.025),
+};
+$('mute').onclick=()=>{muted=!muted;$('mute').textContent='Ses: '+(muted?'kapalı':'açık')};
+
+/* ---------- sprite'lar ---------- */
+const CHICK=[
+".......RR...",
+"......RRR...",
+"......WWWW..",
+"......WWKWOO",
+"......WWWWO.",
+"W.....WWWR..",
+"WW..WWWWWR..",
+"WWWWWWWWW...",
+".WWwWWWWW...",
+"..WwwwWWW...",
+"...WWWWW....",
+"....O..O....",
+"...OO.OO...."];
+const CHICK_PAL={W:'#fbfbf5',w:'#cfcabd',R:'#e23b2e',O:'#f29a26',K:'#1a1a1a'};
+const FOX=[
+"..........O.O.",
+"..........OOOO",
+"WO.......OOKOO",
+"WOO.OOOOOOOOOK",
+".OOOOOOOOOWWW.",
+"...OOOOOOOOW..",
+"...OK....OK...",
+"...K.....K...."];
+const FOX_PAL={O:'#e0752d',W:'#fbfbf5',K:'#2a1a12'};
+function sprite(map,pal,x,y,flip,sy=1){
+  const w=map[0].length;
+  for(let j=0;j<map.length;j++)for(let i=0;i<w;i++){
+    const c=map[j][i]; if(c==='.')continue;
+    ctx.fillStyle=pal[c];
+    ctx.fillRect(Math.round(x+(flip?w-1-i:i)),Math.round(y+j*sy),1,Math.max(1,Math.ceil(sy)));
+  }
+}
+
+/* ---------- dünya üretimi ---------- */
+let rows,maxGen,gen,st,particles,time=0;
+function grassRow(y,mode){
+  const block=new Array(COLS).fill(0); let corn=-1;
+  if(mode==='wall'){for(let c=0;c<COLS;c++)block[c]=hash(y*31+c)<.5?'tree':'bale'}
+  else if(mode==='safe'){block[0]='tree';block[COLS-1]='tree'}
+  else{
+    const p=.16+.12*diff(y); let n=0;
+    for(let c=0;c<COLS;c++) if(Math.random()<p&&n<4){block[c]=Math.random()<.65?'tree':'bale';n++}
+    if(Math.random()<.3){const free=[...Array(COLS).keys()].filter(c=>!block[c]); if(free.length)corn=pick(free)}
+  }
+  return {type:'grass',block,corn};
+}
+function laneObjs(w0,w1,g0,g1){
+  const objs=[]; let x=-3+rnd(0,2);
+  while(true){const w=ri(w0,w1); if(x+w>COLS+1)break; objs.push({x,w}); x+=w+rnd(g0,g1)}
+  return objs;
+}
+const CAR_COLORS=['#e0483e','#f2b33d','#3d7fe0','#9b59d0','#efe9dc','#3fb58a'];
+function roadRow(y){
+  const d=diff(y), dir=Math.random()<.5?1:-1, r=Math.random();
+  let kind,w,sp,gap;
+  if(r<.55){kind='car';w=2;sp=rnd(1.6,3);gap=[3,6]}
+  else if(r<.8){kind='truck';w=3;sp=rnd(1.2,2.2);gap=[3.5,6]}
+  else{kind='tractor';w=2;sp=rnd(.7,1.2);gap=[2.5,5]}
+  const objs=[]; let x=-3+rnd(0,2);
+  while(true){if(x+w>COLS+1)break; objs.push({x,w,kind,color:pick(CAR_COLORS)}); x+=w+rnd(gap[0],gap[1])}
+  return {type:'road',v:dir*sp*(1+d*.8),objs};
+}
+function riverRow(y){
+  const d=diff(y), dir=-gen.riverDir; gen.riverDir=dir;
+  if(Math.random()<.2 && gen.lastType!=='lily'){
+    gen.lastType='lily';
+    const cols=[...Array(COLS).keys()].sort(()=>Math.random()-.5).slice(0,ri(4,6));
+    return {type:'river',v:0,lily:true,objs:cols.map(c=>({x:c,w:1}))};
+  }
+  gen.lastType='river';
+  return {type:'river',v:dir*rnd(.8,1.6)*(1+d*.5),objs:laneObjs(2,4,1.4,2.8+d*.8)};
+}
+function railRow(){return {type:'rail',dir:Math.random()<.5?1:-1,timer:rnd(1.5,5),train:null}}
+function makeRow(y){
+  if(y<0) return grassRow(y,'wall');
+  if(y<4) return grassRow(y,'safe');
+  if(gen.left<=0){
+    const r=Math.random(); let type,len;
+    if(gen.type!=='grass'&&Math.random()<.6){type='grass';len=ri(1,2)}
+    else if(r<.45){type='road';len=ri(1,3+Math.round(diff(y)*2))}
+    else if(r<.72){type='river';len=ri(1,3)}
+    else if(r<.86){type='rail';len=ri(1,2)}
+    else{type='grass';len=ri(1,3)}
+    gen.type=type;gen.left=len;
+  }
+  gen.left--;
+  if(gen.type!=='river')gen.lastType=gen.type;
+  return gen.type==='road'?roadRow(y):gen.type==='river'?riverRow(y):gen.type==='rail'?railRow():grassRow(y);
+}
+function getRow(y){
+  while(maxGen<y){maxGen++;rows.set(maxGen,makeRow(maxGen))}
+  return rows.get(y)||grassRow(y,'wall');
+}
+
+/* ---------- oyun durumu ---------- */
+let mode='title', overAt=0;
+function reset(){
+  rows=new Map(); maxGen=-6; gen={left:0,type:'grass',riverDir:1,lastType:'grass'};
+  particles=[];
+  st={cx:5,cy:1,px:5,py:1,hop:null,face:1,ride:null,queue:null,dead:null,score:0,corn:0,started:false,camY:-3};
+  for(let y=-4;y<ROWS+2;y++)getRow(y);
+  updHud();
+}
+function updHud(){$('score').textContent=st.score;$('corn').textContent=st.corn;$('best').textContent=best}
+
+function move(dx,dy){
+  if(st.dead) return;
+  if(st.hop){st.queue=[dx,dy];return}
+  if(dx)st.face=dx;
+  const to=getRow(st.cy+dy);
+  let tx=st.cx+dx;
+  if(to.type!=='river'||to.lily) tx=Math.round(tx);
+  if(tx<-0.3||tx>COLS-0.7) return;
+  if(to.type==='grass'&&to.block[Math.round(tx)]) return;
+  st.hop={fx:st.cx,fy:st.cy,tx,ty:st.cy+dy,t:0};
+  st.ride=null; st.started=true; sfx.hop();
+}
+function land(){
+  const h=st.hop; st.cx=h.tx; st.cy=h.ty; st.hop=null; st.px=st.cx; st.py=st.cy;
+  const row=getRow(st.cy);
+  if(st.cy-1>st.score){st.score=st.cy-1;updHud()}
+  if(row.type==='grass'&&row.corn===Math.round(st.cx)){
+    row.corn=-1; st.corn++; sfx.corn(); updHud();
+    burst(st.cx*T+8,0,'#f7c948',6,st.cy);
+  }
+  if(row.type==='river'){
+    const c=st.cx+.5, o=row.objs.find(o=>c>=o.x-.12&&c<=o.x+o.w+.12);
+    if(!o){die('splash');return}
+    if(row.lily) st.cx=st.px=o.x;
+    else st.cx=st.px=Math.min(Math.max(st.cx,o.x-.3),o.x+o.w-.7);
+    st.ride=row;
+  }
+  if(st.queue){const q=st.queue;st.queue=null;move(q[0],q[1])}
+}
+const REASONS={squash:'EZİLDİN!',train:'TREN ÇARPTI!',splash:'SUYA DÜŞTÜN!',swept:'AKINTI GÖTÜRDÜ!',fox:'TİLKİ KAPTI!'};
+function die(kind){
+  if(st.dead) return;
+  st.dead={kind,t:0,fx:0}; st.hop=null; st.ride=null;
+  if(kind==='squash'||kind==='train'){sfx.squash();burst(st.px*T+8,0,'#fbfbf5',10,st.py)}
+  else if(kind==='fox') sfx.fox();
+  else sfx.splash();
+  if(st.score>best){best=st.score;try{localStorage.setItem('gidak-best',best)}catch(e){}}
+  overAt=time+1.1;
+}
+function showOver(){
+  mode='over';
+  $('reason').textContent=REASONS[st.dead.kind];
+  $('oScore').textContent=st.score;$('oCorn').textContent=st.corn;$('oBest').textContent=best;
+  $('newBest').hidden=!(st.score>0&&st.score===best&&st.score>prevBest);
+  $('over').hidden=false; updHud();
+  setTimeout(()=>{try{$('againBtn').focus({preventScroll:true})}catch(e){}},50);
+}
+let prevBest=best;
+function start(){prevBest=best;reset();mode='play';$('title').hidden=true;$('over').hidden=true}
+
+function burst(x,yOff,color,n,rowY){
+  for(let i=0;i<n;i++)particles.push({x,wy:rowY,y:yOff+8,vx:rnd(-30,30),vy:rnd(-60,-20),life:rnd(.5,.9),color});
+}
+
+/* ---------- güncelleme ---------- */
+function update(dt){
+  time+=dt;
+  const base=Math.floor(st.camY)-1;
+  for(let y=base;y<=base+ROWS+2;y++){
+    const row=getRow(y);
+    if(row.v) for(const o of row.objs){
+      o.x+=row.v*dt;
+      if(row.v>0&&o.x>COLS+3)o.x-=SPAN; else if(row.v<0&&o.x+o.w<-3)o.x+=SPAN;
+    }
+    if(row.type==='rail'){
+      if(row.train){row.train.x+=row.train.v*dt; if(row.train.x>COLS+14||row.train.x<-26){row.train=null;row.timer=rnd(3,7)}}
+      else{const prev=row.timer;row.timer-=dt;
+        if(row.timer<1.3&&Math.floor(prev*4)!==Math.floor(row.timer*4)&&y>=st.camY&&y<st.camY+ROWS&&mode==='play'&&!st.dead) sfx.ding();
+        if(row.timer<=0) row.train={x:row.dir>0?-24:COLS+2,w:22,v:row.dir*20};
+      }
+    }
+  }
+  for(const y of rows.keys()) if(y<st.camY-6) rows.delete(y);
+
+  if(mode==='play'&&!st.dead){
+    if(st.hop){
+      const h=st.hop; h.t+=dt/0.12;
+      if(h.t>=1) land();
+      else{st.px=h.fx+(h.tx-h.fx)*h.t; st.py=h.fy+(h.ty-h.fy)*h.t}
+    }
+    if(!st.dead&&st.ride){
+      st.cx+=st.ride.v*dt; st.px=st.cx;
+      if(st.cx<-0.45||st.cx>COLS-0.55) die('swept');
+    }
+    if(!st.dead){
+      const ry=st.hop?(st.hop.t<.5?st.hop.fy:st.hop.ty):st.cy, row=getRow(ry);
+      const l=st.px+.2, r=st.px+.8;
+      if(row.type==='road'){for(const o of row.objs) if(r>o.x+.1&&l<o.x+o.w-.1){die('squash');break}}
+      else if(row.type==='rail'&&row.train){const o=row.train; if(r>o.x&&l<o.x+o.w) die('train')}
+    }
+    // kamera
+    const target=st.py-4;
+    if(target>st.camY) st.camY+=(target-st.camY)*Math.min(1,dt*5);
+    if(st.started&&!st.dead) st.camY+=dt*(.3+.35*diff(st.cy));
+    if(!st.dead&&st.py<st.camY-0.35) die('fox');
+  }
+  if(st.dead){
+    st.dead.t+=dt;
+    if(st.dead.kind==='fox'&&st.dead.t>.4&&!st.dead.ate){st.dead.ate=true;burst(st.px*T+8,0,'#fbfbf5',12,st.py)}
+    if(mode==='play'&&time>=overAt) showOver();
+  }
+  for(const p of particles){p.x+=p.vx*dt;p.y+=p.vy*dt;p.vy+=160*dt;p.life-=dt}
+  particles=particles.filter(p=>p.life>0);
+}
+
+/* ---------- çizim ---------- */
+const sy=y=>Math.round(H-(y-st.camY+1)*T);
+function drawGrass(row,y,Y){
+  R(0,Y,W,T,(y&1)?'#5aa83c':'#62b343');
+  for(let i=0;i<5;i++){const x=hash(y*13+i)*W,ty=Y+2+hash(y*7+i)*11;R(x,ty,1,2,'#3f8a2a');R(x+2,ty+1,1,1,'#3f8a2a')}
+  if(hash(y*91)<.35){const x=hash(y*17)*W;R(x,Y+6,2,2,'#f6f1e3');R(x+.5,Y+6.5,1,1,'#f2b33d')}
+  for(let c=0;c<COLS;c++){
+    const b=row.block[c],x=c*T; if(!b)continue;
+    if(b==='tree'){
+      R(x+3,Y+12,11,3,'rgba(0,0,0,.25)');
+      R(x+6,Y+10,4,5,'#6b3e1f');
+      R(x+2,Y+3,12,8,'#2f6b2a');R(x+4,Y+1,8,12,'#2f6b2a');R(x+3,Y+2,10,10,'#2f6b2a');
+      R(x+4,Y+3,5,4,'#4c9a3c');R(x+5,Y+2,3,2,'#5fb24a');R(x+10,Y+8,2,2,'#235520');
+    }else{
+      R(x+2,Y+12,13,3,'rgba(0,0,0,.25)');
+      R(x+2,Y+4,12,9,'#d9b04a');R(x+3,Y+3,10,11,'#d9b04a');
+      R(x+3,Y+6,10,1,'#b48a2c');R(x+3,Y+10,10,1,'#b48a2c');R(x+4,Y+4,3,1,'#f0d27a');
+    }
+  }
+  if(row.corn>=0){
+    const x=row.corn*T, bob=Math.round(Math.sin(time*4+y)*1);
+    R(x+5,Y+13,6,2,'rgba(0,0,0,.25)');
+    R(x+6,Y+3+bob,4,8,'#f7c948');R(x+7,Y+4+bob,1,1,'#c99a1e');R(x+8,Y+6+bob,1,1,'#c99a1e');R(x+7,Y+8+bob,1,1,'#c99a1e');
+    R(x+5,Y+8+bob,1,4,'#4f9b3a');R(x+10,Y+8+bob,1,4,'#4f9b3a');R(x+6,Y+11+bob,4,1,'#4f9b3a');
+  }
+}
+function drawVehicle(o,Y,dir){
+  const x=o.x*T, w=o.w*T-2, front=dir>0?x+w:x;
+  R(x+2,Y+13,w,2,'rgba(0,0,0,.3)');
+  if(o.kind==='tractor'){
+    const bx=dir>0?x:x+w-12, fx=dir>0?x+w-10:x;
+    R(bx,Y+1,10,3,'#1b1b1b');R(bx,Y+12,10,3,'#1b1b1b');
+    R(fx+2,Y+3,6,2,'#1b1b1b');R(fx+2,Y+11,6,2,'#1b1b1b');
+    R(x+1,Y+4,w-1,8,'#3f9b3f');R(bx+2,Y+5,6,6,'#2d7a2d');R(bx+3,Y+6,4,4,'#f2b33d');
+    R(dir>0?x+w-2:x+1,Y+6,1,4,'#9a9a9a');
+    return;
+  }
+  const c=o.color;
+  R(x+2,Y+2,4,2,'#111');R(x+w-5,Y+2,4,2,'#111');R(x+2,Y+12,4,2,'#111');R(x+w-5,Y+12,4,2,'#111');
+  R(x,Y+3,w,10,c);R(x+1,Y+3,w-2,1,'rgba(255,255,255,.35)');R(x,Y+12,w,1,'rgba(0,0,0,.25)');
+  if(o.kind==='truck'){
+    const cab=dir>0?x+w-9:x, box=dir>0?x:x+10;
+    R(box,Y+3,w-10,10,'#e7e1d3');R(box,Y+7,w-10,1,'#c9c1ae');
+    R(dir>0?cab+4:cab+1,Y+4,4,8,'#9fd3e6');
+  }else{
+    R(x+5,Y+4,w-10,8,'rgba(0,0,0,.18)');
+    R(dir>0?x+w-9:x+5,Y+4,4,8,'#9fd3e6');R(dir>0?x+5:x+w-9,Y+5,3,6,'#7fb3c6');
+  }
+  R(dir>0?front-1:front,Y+4,1,2,'#fff6a8');R(dir>0?front-1:front,Y+10,1,2,'#fff6a8');
+  R(dir>0?x:x+w-1,Y+4,1,2,'#b81e1e');R(dir>0?x:x+w-1,Y+10,1,2,'#b81e1e');
+}
+function drawRoad(row,y,Y){
+  R(0,Y,W,T,'#3b3946');
+  const up=getRow(y+1), dn=getRow(y-1);
+  if(up.type==='road') for(let x=2;x<W;x+=10)R(x,Y,5,1,'#d8d4c8'); else R(0,Y,W,2,'#76727f');
+  if(dn.type!=='road') R(0,Y+T-2,W,2,'#76727f');
+  for(const o of row.objs) drawVehicle(o,Y,Math.sign(row.v));
+}
+function drawRiver(row,y,Y){
+  R(0,Y,W,T,'#2b6fb3');
+  const off=row.v?time*row.v*T*.5:time*6;
+  for(let i=0;i<4;i++){const bx=((hash(y*5+i)*W+off)%W+W)%W;R(bx,Y+3+i*3,4,1,'#5596d6')}
+  for(const o of row.objs){
+    const x=o.x*T;
+    if(row.lily){
+      R(x+2,Y+3,12,10,'#3c9a3c');R(x+3,Y+2,10,12,'#3c9a3c');R(x+7,Y+2,2,5,'#2b6fb3');R(x+4,Y+4,3,2,'#5cba4c');
+    }else{
+      const w=o.w*T-1;
+      R(x+1,Y+12,w,2,'rgba(0,0,0,.2)');
+      R(x,Y+2,w,11,'#7a4b25');R(x,Y+3,w,2,'#9a6534');R(x,Y+10,w,1,'#5e381a');
+      R(x,Y+2,3,11,'#c48a52');R(x+1,Y+6,1,3,'#8f5a2e');R(x+w-2,Y+2,2,11,'#5e381a');
+      for(let k=6;k<w-4;k+=9)R(x+k,Y+7,3,1,'#5e381a');
+    }
+  }
+}
+function drawRail(row,y,Y){
+  R(0,Y,W,T,'#7d6f63');
+  for(let x=1;x<W;x+=5)R(x,Y+2,3,12,'#5a3d26');
+  R(0,Y+4,W,2,'#c9c9d1');R(0,Y+10,W,2,'#c9c9d1');R(0,Y+5,W,1,'#8d8d98');R(0,Y+11,W,1,'#8d8d98');
+  const warn=row.train||row.timer<1.3, on=warn&&Math.floor(time*6)%2===0;
+  R(3,Y+1,2,13,'#2a2a2a');R(1,Y,6,4,'#2a2a2a');R(2,Y+1,4,2,on?'#ff4a3a':'#5a1e1a');
+  if(row.train){
+    const t=row.train, d=Math.sign(t.v), x0=t.x*T, len=t.w*T;
+    R(x0,Y+14,len,2,'rgba(0,0,0,.3)');
+    for(let k=0;k<len;k+=24){
+      const isLoco=d>0?k+24>=len:k===0, cx=x0+k;
+      R(cx,Y+1,22,13,isLoco?'#c23b32':'#2f5d8a');R(cx,Y+1,22,2,'rgba(255,255,255,.25)');
+      if(isLoco){R(d>0?cx+14:cx+2,Y+3,6,9,'#9fd3e6');R(d>0?cx+21:cx,Y+5,1,5,'#fff6a8')}
+      else for(let wx=3;wx<20;wx+=6)R(cx+wx,Y+4,4,6,'#bfe0ec');
+    }
+  }
+}
+function drawChicken(){
+  const d=st.dead, x=Math.round(st.px*T)+2;
+  let y=sy(st.py)+2;
+  if(st.hop) y-=Math.round(Math.sin(st.hop.t*Math.PI)*5);
+  const flip=st.face<0;
+  if(d&&(d.kind==='splash'||d.kind==='swept')){
+    const r=Math.min(14,2+d.t*22), cx=x+6, cy=sy(st.py)+8;
+    ctx.fillStyle='rgba(220,240,255,.8)';
+    ctx.fillRect(cx-r,cy,1,1);ctx.fillRect(cx+r,cy,1,1);ctx.fillRect(cx,cy-r/2,1,1);ctx.fillRect(cx,cy+r/2,1,1);
+    ctx.fillRect(cx-r*.7,cy-r*.35,2,1);ctx.fillRect(cx+r*.7,cy-r*.35,2,1);ctx.fillRect(cx-r*.7,cy+r*.35,2,1);ctx.fillRect(cx+r*.7,cy+r*.35,2,1);
+    if(d.t<.25)sprite(CHICK,CHICK_PAL,x,y+d.t*30,flip);
+    return;
+  }
+  if(d&&d.kind==='fox'){
+    const k=Math.min(1,d.t/.4), fy=H+10+(sy(st.py)+6-(H+10))*k;
+    const fx=d.t<.4?x-2:x-2+(d.t-.4)*160;
+    if(!d.ate) sprite(CHICK,CHICK_PAL,x,y,flip);
+    sprite(FOX,FOX_PAL,fx,fy,false);
+    return;
+  }
+  R(x+2,sy(st.py)+13,9,2,'rgba(0,0,0,.25)');
+  if(d) sprite(CHICK,CHICK_PAL,x-1,y+9,flip,.35);
+  else sprite(CHICK,CHICK_PAL,x,y,flip);
+}
+function draw(){
+  ctx.imageSmoothingEnabled=false;
+  const base=Math.floor(st.camY)-1;
+  for(let y=base+ROWS+1;y>=base;y--){
+    const row=getRow(y), Y=sy(y);
+    if(Y>H||Y<-T)continue;
+    if(row.type==='grass')drawGrass(row,y,Y);
+    else if(row.type==='road')drawRoad(row,y,Y);
+    else if(row.type==='river')drawRiver(row,y,Y);
+    else drawRail(row,y,Y);
+  }
+  drawChicken();
+  for(const p of particles){R(p.x,sy(p.wy)+p.y,2,1,p.color)}
+  // ekran altı tilki uyarısı
+  if(mode==='play'&&!st.dead&&st.started){
+    const gap=st.py-st.camY;
+    if(gap<1.6&&Math.floor(time*5)%2===0){R(0,H-3,W,3,'#e23b2e')}
+  }
+}
+
+/* ---------- döngü ---------- */
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(.05,(now-last)/1000); last=now;
+  update(dt); draw();
+  requestAnimationFrame(loop);
+}
+
+/* ---------- ölçek ---------- */
+function fit(){
+  const aw=Math.max(100,window.innerWidth-36), ah=Math.max(100,window.innerHeight-70);
+  let s=Math.min(aw/W,ah/H); if(s>=2)s=Math.floor(s);
+  cv.style.width=Math.floor(W*s)+'px'; cv.style.height=Math.floor(H*s)+'px';
+}
+window.addEventListener('resize',fit); fit();
+
+/* ---------- girdi ---------- */
+const KEYS={ArrowUp:[0,1],KeyW:[0,1],ArrowDown:[0,-1],KeyS:[0,-1],ArrowLeft:[-1,0],KeyA:[-1,0],ArrowRight:[1,0],KeyD:[1,0]};
+function act(dx,dy){
+  if(mode==='title'){start()}
+  else if(mode==='over'){if(time<overAt+.4)return; start()}
+  move(dx,dy);
+}
+window.addEventListener('keydown',e=>{
+  const k=KEYS[e.code];
+  if(k){e.preventDefault();if(!e.repeat)act(k[0],k[1]);return}
+  if((e.code==='Space'||e.code==='Enter')&&mode!=='play'){
+    if(document.activeElement&&document.activeElement.tagName==='BUTTON'&&document.activeElement.id!=='mute')return;
+    e.preventDefault(); if(mode==='title'||time>=overAt+.4)start();
+  }
+});
+let ps=null;
+$('stage').addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;ps={x:e.clientX,y:e.clientY}});
+$('stage').addEventListener('pointerup',e=>{
+  if(!ps||e.target.closest('button')){ps=null;return}
+  const dx=e.clientX-ps.x, dy=e.clientY-ps.y; ps=null;
+  if(Math.hypot(dx,dy)<22) act(0,1);
+  else if(Math.abs(dx)>Math.abs(dy)) act(Math.sign(dx),0);
+  else act(0,dy<0?1:-1);
+});
+$('startBtn').onclick=()=>start();
+$('againBtn').onclick=()=>start();
+
+reset();
+requestAnimationFrame(loop);
+})();
+</script>
